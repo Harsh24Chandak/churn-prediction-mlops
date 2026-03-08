@@ -71,4 +71,4 @@ mlflow ui
 `[Data] → [Preprocessing] → [Training (MLflow)] → [Model Registry] → [FastAPI] → [Docker] → [Render]`
 
 ## 👨‍💻 Author
-Your Name
+Harsh Chandak
