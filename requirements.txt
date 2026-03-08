@@ -1,0 +1,13 @@
+pandas<3.0.0
+numpy
+matplotlib
+seaborn
+scikit-learn
+joblib
+xgboost
+mlflow
+fastapi
+pydantic
+uvicorn
+requests
+evidently
