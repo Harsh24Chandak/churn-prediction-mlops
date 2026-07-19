@@ -7,7 +7,8 @@ from typing import List
 
 # Load model artifacts
 model = joblib.load('models/best_churn_model.joblib')
-encoders = joblib.load('models/encoders.joblib')
+feature_columns = joblib.load('models/feature_columns.joblib')
+label_encoders = joblib.load('models/label_encoders.joblib')
 scaler = joblib.load('models/scaler.joblib')
 
 app = FastAPI(
@@ -48,14 +49,23 @@ async def health():
 @app.post("/predict")
 async def predict_churn(customer: CustomerData):
     try:
+        # Convert to DataFrame
         input_data = pd.DataFrame([customer.model_dump()])
         
-        # Encode categoricals
-        for col in input_data.select_dtypes(include=['object']).columns:
-            if col in encoders:
-                input_data[col] = encoders[col].transform(input_data[col].astype(str))
+        # Ensure column order matches training
+        input_data = input_data[feature_columns]
         
-        # Scale numericals
+        # Encode categorical variables
+        categorical_cols = input_data.select_dtypes(include=['object']).columns
+        for col in categorical_cols:
+            if col in label_encoders:
+                # Handle unseen labels
+                input_data[col] = input_data[col].apply(
+                    lambda x: x if x in label_encoders[col].classes_ else label_encoders[col].classes_[0]
+                )
+                input_data[col] = label_encoders[col].transform(input_data[col])
+        
+        # Scale numerical features
         numerical_cols = ['tenure', 'MonthlyCharges', 'TotalCharges']
         input_data[numerical_cols] = scaler.transform(input_data[numerical_cols])
         
@@ -79,10 +89,15 @@ async def predict_churn(customer: CustomerData):
 async def predict_batch(customers: List[CustomerData]):
     try:
         input_data = pd.DataFrame([c.model_dump() for c in customers])
+        input_data = input_data[feature_columns]
         
-        for col in input_data.select_dtypes(include=['object']).columns:
-            if col in encoders:
-                input_data[col] = encoders[col].transform(input_data[col].astype(str))
+        categorical_cols = input_data.select_dtypes(include=['object']).columns
+        for col in categorical_cols:
+            if col in label_encoders:
+                input_data[col] = input_data[col].apply(
+                    lambda x: x if x in label_encoders[col].classes_ else label_encoders[col].classes_[0]
+                )
+                input_data[col] = label_encoders[col].transform(input_data[col])
         
         numerical_cols = ['tenure', 'MonthlyCharges', 'TotalCharges']
         input_data[numerical_cols] = scaler.transform(input_data[numerical_cols])
@@ -103,7 +118,3 @@ async def predict_batch(customers: List[CustomerData]):
         return {
             "total_customers": len(results),
             "predicted_churners": sum([r['churn_prediction'] for r in results]),
-            "results": results
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
